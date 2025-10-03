@@ -483,54 +483,41 @@ Generate only the abstract text, without any additional commentary."""
         
         return top_3_journals
     
-    def calculate_journal_score(self, journal: Dict[str, Any], relevance: int) -> float:
+    def calculate_journal_score(self, journal_data: Dict[str, Any], relevance_count: int) -> float:
         """
-        Calculate a comprehensive score for a journal based on multiple factors.
+        Calculate a score for a journal based on relevance and h-index.
         
         Scoring breakdown:
-        - Relevance (how many times it appeared in top 30 works): 40% (0-40 points)
-        - h-index (impact factor): 30% (0-30 points)
-        - Citation count: 20% (0-20 points)
-        - Open access: 10% (0-10 points)
+        - Relevance Score (60 points): Based on how many times the journal appeared in top 30 papers
+        - Impact Score (40 points): Based on journal's h-index (capped at 250)
         
         Args:
-            journal: Journal data dictionary from OpenAlex /sources endpoint
-            relevance: Number of times this journal appeared in top 30 works
+            journal_data: Journal data dictionary from OpenAlex /sources endpoint
+            relevance_count: Number of times this journal appeared in top 30 works
         
         Returns:
             Score (0-100)
         """
-        score = 0.0
+        # 1. Relevance Score (60 points max)
+        # Assumes initial search fetched 30 papers
+        # Score = (relevance_count / 30) * 60
+        total_papers = 30
+        relevance_score = (relevance_count / total_papers) * 60
         
-        # 1. Relevance score (40 points max)
-        # Normalize: if a journal appeared in 10+ of the 30 works, it gets full 40 points
-        max_relevance = 10
-        relevance_score = min(relevance / max_relevance, 1.0) * 40
-        score += relevance_score
+        # 2. Impact Score (40 points max)
+        # Based on h-index, capped at maximum value of 250
+        # Score = (min(h_index, 250) / 250) * 40
+        # Handle cases where h_index is missing by defaulting to 0
+        h_index = journal_data.get('summary_stats', {}).get('h_index', 0)
+        if h_index is None:  # Extra safety check
+            h_index = 0
+        max_h_index = 250
+        impact_score = (min(h_index, max_h_index) / max_h_index) * 40
         
-        # 2. h-index score (30 points max)
-        # h-index typically ranges from 0-200+ for top journals
-        h_index = journal.get('summary_stats', {}).get('h_index', 0)
-        max_h_index = 200
-        h_index_score = min(h_index / max_h_index, 1.0) * 30
-        score += h_index_score
+        # Return sum of both scores
+        total_score = relevance_score + impact_score
         
-        # 3. Citation count score (20 points max)
-        # Normalize based on 2-year citation count
-        cited_by_count = journal.get('cited_by_count', 0)
-        # Assume top journals have 100k+ citations
-        max_citations = 100000
-        citation_score = min(cited_by_count / max_citations, 1.0) * 20
-        score += citation_score
-        
-        # 4. Open access score (10 points)
-        # Check if journal supports open access
-        is_oa = journal.get('is_oa', False)
-        is_in_doaj = journal.get('is_in_doaj', False)
-        if is_oa or is_in_doaj:
-            score += 10
-        
-        return round(score, 2)
+        return round(total_score, 2)
     
     def format_journal_output(self, journal: Dict[str, Any]) -> Dict[str, Any]:
         """

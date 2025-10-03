@@ -13,7 +13,7 @@
     "is_open_access": false,
     "is_in_doaj": false,
     "relevance_count": 6,
-    "calculated_score": 74.0,
+    "calculated_score": 52.0,
     "openalex_id": "https://openalex.org/S137773608",
     "type": "journal"
   },
@@ -32,7 +32,7 @@
     "is_open_access": false,
     "is_in_doaj": false,
     "relevance_count": 6,
-    "calculated_score": 74.0,
+    "calculated_score": 52.0,
     "openalex_id": "https://openalex.org/S199944782",
     "type": "journal"
   },
@@ -50,7 +50,7 @@
     "is_open_access": false,
     "is_in_doaj": false,
     "relevance_count": 2,
-    "calculated_score": 58.0,
+    "calculated_score": 43.04,
     "openalex_id": "https://openalex.org/S123019304",
     "type": "journal"
   }
