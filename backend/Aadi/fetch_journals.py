@@ -393,7 +393,7 @@ Generate only the abstract text, without any additional commentary."""
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(final_results, f, indent=2, ensure_ascii=False)
         
-        print(f"\n✅ Top 3 most apt journals saved to {output_file}")
+        print(f"\n[SUCCESS] Top 3 most apt journals saved to {output_file}")
 
 
 def main():
