@@ -1,0 +1,8 @@
+{
+  "subjectArea": "NLP",
+  "title": "Transformr-Based Sentiment Analisys for Social Media",
+  "abstract": "This papr presents a novel approch for sentiment analisys using transformr models like BERT and GPT. We apply NLP techniques for text procesing and achive SOTA results on Twitter data.",
+  "accPercentFrom": 30,
+  "accPercentTo": 60,
+  "openAccess": "yes"
+}

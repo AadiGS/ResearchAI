@@ -394,6 +394,169 @@ Generate only the abstract text, without any additional commentary."""
             json.dump(final_results, f, indent=2, ensure_ascii=False)
         
         print(f"\n[SUCCESS] Top 3 most apt journals saved to {output_file}")
+    
+    def find_top_journals(self, search_query: str, email: str) -> List[Dict[str, Any]]:
+        """
+        Two-step journal search strategy:
+        1. Fetch top 30 most-cited works matching the search query
+        2. Extract unique journals and rank them by relevance and score
+        
+        Args:
+            search_query: Search query string (e.g., keywords, subject area)
+            email: User email for OpenAlex polite pool
+        
+        Returns:
+            List of top 3 formatted journals
+        """
+        # Step 1: Fetch top 30 most-cited works
+        works_url = "https://api.openalex.org/works"
+        works_params = {
+            'search': search_query,
+            'mailto': email,
+            'per_page': 30,
+            'sort': 'cited_by_count:desc',
+            'filter': 'primary_location.source.type:journal'
+        }
+        
+        try:
+            response = requests.get(works_url, params=works_params)
+            response.raise_for_status()
+            works_data = response.json()
+            works = works_data.get('results', [])
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching works: {e}")
+            return []
+        
+        # Step 2: Extract unique journal IDs and count occurrences
+        journal_counts = {}
+        for work in works:
+            source_id = work.get('primary_location', {}).get('source', {}).get('id')
+            if source_id:
+                journal_counts[source_id] = journal_counts.get(source_id, 0) + 1
+        
+        # Step 3: If no unique journal IDs found, return empty list
+        if not journal_counts:
+            print("No journal IDs found in the works.")
+            return []
+        
+        # Step 4: Fetch journal details from /sources endpoint
+        unique_journal_ids = list(journal_counts.keys())
+        # Extract just the OpenAlex ID part (remove the full URL)
+        journal_id_strings = [jid.replace('https://openalex.org/', '') for jid in unique_journal_ids]
+        
+        sources_url = "https://api.openalex.org/sources"
+        sources_filter = 'ids.openalex:' + '|'.join(journal_id_strings)
+        sources_params = {
+            'filter': sources_filter,
+            'mailto': email,
+            'per_page': len(journal_id_strings)
+        }
+        
+        try:
+            response = requests.get(sources_url, params=sources_params)
+            response.raise_for_status()
+            sources_data = response.json()
+            journals = sources_data.get('results', [])
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching sources: {e}")
+            return []
+        
+        # Step 5 & 6: Calculate relevance and score for each journal
+        scored_journals = []
+        for journal in journals:
+            journal_id = journal.get('id')
+            relevance = journal_counts.get(journal_id, 0)
+            
+            # Calculate journal score
+            score = self.calculate_journal_score(journal, relevance)
+            
+            # Add score and relevance to journal data
+            journal['relevance_count'] = relevance
+            journal['calculated_score'] = score
+            scored_journals.append(journal)
+        
+        # Step 7: Rank journals by score (descending)
+        ranked_journals = sorted(scored_journals, key=lambda x: x['calculated_score'], reverse=True)
+        
+        # Step 8 & 9: Format and return top 3 journals
+        top_3_journals = [self.format_journal_output(journal) for journal in ranked_journals[:3]]
+        
+        return top_3_journals
+    
+    def calculate_journal_score(self, journal: Dict[str, Any], relevance: int) -> float:
+        """
+        Calculate a comprehensive score for a journal based on multiple factors.
+        
+        Scoring breakdown:
+        - Relevance (how many times it appeared in top 30 works): 40% (0-40 points)
+        - h-index (impact factor): 30% (0-30 points)
+        - Citation count: 20% (0-20 points)
+        - Open access: 10% (0-10 points)
+        
+        Args:
+            journal: Journal data dictionary from OpenAlex /sources endpoint
+            relevance: Number of times this journal appeared in top 30 works
+        
+        Returns:
+            Score (0-100)
+        """
+        score = 0.0
+        
+        # 1. Relevance score (40 points max)
+        # Normalize: if a journal appeared in 10+ of the 30 works, it gets full 40 points
+        max_relevance = 10
+        relevance_score = min(relevance / max_relevance, 1.0) * 40
+        score += relevance_score
+        
+        # 2. h-index score (30 points max)
+        # h-index typically ranges from 0-200+ for top journals
+        h_index = journal.get('summary_stats', {}).get('h_index', 0)
+        max_h_index = 200
+        h_index_score = min(h_index / max_h_index, 1.0) * 30
+        score += h_index_score
+        
+        # 3. Citation count score (20 points max)
+        # Normalize based on 2-year citation count
+        cited_by_count = journal.get('cited_by_count', 0)
+        # Assume top journals have 100k+ citations
+        max_citations = 100000
+        citation_score = min(cited_by_count / max_citations, 1.0) * 20
+        score += citation_score
+        
+        # 4. Open access score (10 points)
+        # Check if journal supports open access
+        is_oa = journal.get('is_oa', False)
+        is_in_doaj = journal.get('is_in_doaj', False)
+        if is_oa or is_in_doaj:
+            score += 10
+        
+        return round(score, 2)
+    
+    def format_journal_output(self, journal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format journal data for final output.
+        
+        Args:
+            journal: Raw journal data from OpenAlex
+        
+        Returns:
+            Formatted journal dictionary with essential information
+        """
+        return {
+            "journal_name": journal.get('display_name', 'N/A'),
+            "issn": journal.get('issn', []),
+            "publisher": journal.get('host_organization_name', 'N/A'),
+            "homepage_url": journal.get('homepage_url', 'N/A'),
+            "h_index": journal.get('summary_stats', {}).get('h_index', 0),
+            "cited_by_count": journal.get('cited_by_count', 0),
+            "works_count": journal.get('works_count', 0),
+            "is_open_access": journal.get('is_oa', False),
+            "is_in_doaj": journal.get('is_in_doaj', False),
+            "relevance_count": journal.get('relevance_count', 0),
+            "calculated_score": journal.get('calculated_score', 0.0),
+            "openalex_id": journal.get('id', 'N/A'),
+            "type": journal.get('type', 'N/A')
+        }
 
 
 def main():
@@ -444,5 +607,66 @@ def main():
     fetcher.save_final_results(top_journals, criteria)
 
 
+def test_two_step_journal_search():
+    """
+    Test function for the new two-step journal search strategy.
+    This demonstrates the find_top_journals function.
+    """
+    print("\n" + "="*80)
+    print("TESTING TWO-STEP JOURNAL SEARCH")
+    print("="*80)
+    
+    fetcher = OpenAlexJournalFetcher()
+    
+    # Test with a search query
+    search_query = "deep learning neural networks"
+    email = fetcher.email or "user@example.com"
+    
+    print(f"\nSearch Query: {search_query}")
+    print(f"Email (Polite Pool): {email}")
+    print("\nFetching top journals using two-step strategy...")
+    print("-"*80)
+    
+    # Execute the two-step journal search
+    top_journals = fetcher.find_top_journals(search_query, email)
+    
+    if not top_journals:
+        print("\nNo journals found.")
+        return
+    
+    # Display results
+    print(f"\n{'='*80}")
+    print(f"TOP {len(top_journals)} JOURNALS (Two-Step Search)")
+    print(f"{'='*80}\n")
+    
+    for i, journal in enumerate(top_journals, 1):
+        print(f"{i}. {journal['journal_name']}")
+        print(f"   Publisher: {journal['publisher']}")
+        print(f"   ISSN: {', '.join(journal['issn']) if journal['issn'] else 'N/A'}")
+        print(f"   h-index: {journal['h_index']}")
+        print(f"   Total Citations: {journal['cited_by_count']:,}")
+        print(f"   Total Works: {journal['works_count']:,}")
+        print(f"   Open Access: {journal['is_open_access']}")
+        print(f"   In DOAJ: {journal['is_in_doaj']}")
+        print(f"   Relevance Count: {journal['relevance_count']} (appeared in top 30 works)")
+        print(f"   Calculated Score: {journal['calculated_score']:.2f}/100")
+        print(f"   Homepage: {journal['homepage_url']}")
+        print(f"   OpenAlex ID: {journal['openalex_id']}")
+        print()
+    
+    # Save results to a separate file
+    output_file = 'two_step_journal_results.json'
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(top_journals, f, indent=2, ensure_ascii=False)
+    
+    print(f"{'='*80}")
+    print(f"[SUCCESS] Results saved to {output_file}")
+    print(f"{'='*80}")
+
+
 if __name__ == "__main__":
-    main()
+    # Run the original main function
+    # main()
+    
+    # Or run the two-step journal search test
+    test_two_step_journal_search()

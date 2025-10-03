@@ -1,21 +1,65 @@
 """
 Main Runner Script for Paper Search Backend
 This is the entry point for using the backend with your own input
+Can be used standalone or imported by frontend/API
 """
 
 import json
 import subprocess
 import os
+import sys
 from main import PaperSearchBackend
 from config import GEMINI_API_KEY, FORMAT_REFERENCE_FILE, OUTPUT_FILE
 
 
-def process_single_input(input_data: dict):
+def process_user_input(input_data: dict, trigger_search: bool = True):
+    """
+    Main API function to process user input from frontend
+    This function can be imported and called from other scripts/APIs
+    
+    Args:
+        input_data: Dictionary containing the paper search input
+        trigger_search: Whether to automatically trigger journal search (default: True)
+    
+    Returns:
+        dict: Contains both refined_output and final_results (if search triggered)
+    """
+    refined_output = process_single_input(input_data, trigger_search)
+    
+    result = {
+        "refined_output": refined_output,
+        "refined_output_path": OUTPUT_FILE
+    }
+    
+    # If journal search was triggered, include final results path
+    if trigger_search:
+        final_results_path = os.path.join(
+            os.path.dirname(OUTPUT_FILE), 
+            "final_result.json"
+        )
+        result["final_results_path"] = final_results_path
+        
+        # Try to load final results if available
+        try:
+            if os.path.exists(final_results_path):
+                with open(final_results_path, 'r') as f:
+                    result["final_results"] = json.load(f)
+        except Exception as e:
+            print(f"[WARNING] Could not load final results: {e}")
+    
+    return result
+
+
+def process_single_input(input_data: dict, trigger_search: bool = True):
     """
     Process a single input and display results
     
     Args:
         input_data: Dictionary containing the paper search input
+        trigger_search: Whether to automatically trigger Aadi's journal search
+    
+    Returns:
+        dict: The refined output
     """
     print("\n" + "="*80)
     print("PROCESSING INPUT")
@@ -54,54 +98,79 @@ def process_single_input(input_data: dict):
     print(f"[SUCCESS] Output saved to: {OUTPUT_FILE}")
     print("="*80)
     
-    # Automatically run Aadi's fetch_journals.py
-    print("\n" + "="*80)
-    print("TRIGGERING JOURNAL SEARCH (Aadi's Backend)")
-    print("="*80)
-    
-    aadi_script_path = os.path.join(os.path.dirname(__file__), "..", "Aadi", "fetch_journals.py")
-    aadi_dir = os.path.join(os.path.dirname(__file__), "..", "Aadi")
-    
-    try:
-        # Run fetch_journals.py from Aadi directory
-        result = subprocess.run(
-            ["python", "fetch_journals.py"],
-            cwd=aadi_dir,
-            capture_output=True,
-            text=True
-        )
+    # Conditionally run Aadi's fetch_journals.py
+    if trigger_search:
+        print("\n" + "="*80)
+        print("TRIGGERING JOURNAL SEARCH (Aadi's Backend)")
+        print("="*80)
         
-        # Display output from Aadi's script
-        if result.stdout:
-            print(result.stdout)
+        aadi_script_path = os.path.join(os.path.dirname(__file__), "..", "Aadi", "fetch_journals.py")
+        aadi_dir = os.path.join(os.path.dirname(__file__), "..", "Aadi")
         
-        if result.stderr:
-            print("Errors/Warnings:", result.stderr)
-        
-        if result.returncode == 0:
-            print("\n" + "="*80)
-            print("[SUCCESS] Journal search completed!")
-            print("="*80)
-        else:
-            print("\n" + "="*80)
-            print(f"[ERROR] Journal search failed with code {result.returncode}")
-            print("="*80)
+        try:
+            # Run fetch_journals.py from Aadi directory
+            result = subprocess.run(
+                ["python", "fetch_journals.py"],
+                cwd=aadi_dir,
+                capture_output=True,
+                text=True
+            )
             
-    except Exception as e:
-        print(f"\n[ERROR] Failed to run fetch_journals.py: {e}")
+            # Display output from Aadi's script
+            if result.stdout:
+                print(result.stdout)
+            
+            if result.stderr:
+                print("Errors/Warnings:", result.stderr)
+            
+            if result.returncode == 0:
+                print("\n" + "="*80)
+                print("[SUCCESS] Journal search completed!")
+                print("="*80)
+            else:
+                print("\n" + "="*80)
+                print(f"[ERROR] Journal search failed with code {result.returncode}")
+                print("="*80)
+                
+        except Exception as e:
+            print(f"\n[ERROR] Failed to run fetch_journals.py: {e}")
     
     return refined_output
 
 
 def main():
     """
-    Main function - Modify the input_data here to test different scenarios
+    Main function - Can be called with custom input_data or uses example
     """
     
-    # ==================== CONFIGURE YOUR INPUT HERE ====================
-    # You can modify this dictionary to test different inputs
+    # Check if running standalone or being imported
+    import sys
     
-    input_data = {
+    # Try to read from command line arguments or environment
+    if len(sys.argv) > 1:
+        # Input provided as command line argument (JSON file path)
+        try:
+            input_file = sys.argv[1]
+            with open(input_file, 'r') as f:
+                input_data = json.load(f)
+            print(f"[INFO] Loaded input from: {input_file}")
+        except Exception as e:
+            print(f"[ERROR] Failed to load input file: {e}")
+            print("[INFO] Using example input instead")
+            input_data = get_example_input()
+    else:
+        # No command line args - use example for testing
+        print("[INFO] No input file provided. Using example input.")
+        print("[INFO] To use custom input: python run.py <input_file.json>")
+        input_data = get_example_input()
+    
+    # Process the input
+    process_single_input(input_data)
+
+
+def get_example_input():
+    """Returns example input data for testing"""
+    return {
         "subjectArea": "DL",
         "title": "A Graph-Attention-Based Deep Learning Network for Predicting Biotech–Small-Molecule Drug Interactions",
         "abstract": "The increasing demand for effective drug combinations has made drug-drug interaction (DDI) prediction a critical task in modern pharmacology. While most existing research focuses on small-molecule drugs, the role of biotech drugs in complex disease treatments remains relatively unexplored. Biotech drugs, derived from biological sources, have unique molecular structures that differ significantly from those of small molecules, making their interactions more challenging to predict. This study introduces BSI-Net, a novel graph attention network-based deep learning framework that improves interaction prediction between biotech and small-molecule drugs. Experimental results demonstrate that BSI-Net outperforms existing methods in multi-class DDI prediction, achieving superior performance across various evaluation types, including micro, macro, and weighted assessments. These findings highlight the potential of deep learning and graph-based models in uncovering novel interactions between biotech and small-molecule drugs, paving the way for more effective combination therapies in drug discovery.",
@@ -109,10 +178,6 @@ def main():
         "accPercentTo": 95,
         "openAccess": "yes"
     }
-    
-    # ===================================================================
-    
-    # Process the input
     process_single_input(input_data)
 
 

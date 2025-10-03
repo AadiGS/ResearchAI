@@ -1,0 +1,57 @@
+[
+  {
+    "journal_name": "Nature",
+    "issn": [
+      "0028-0836",
+      "1476-4687"
+    ],
+    "publisher": "Nature Portfolio",
+    "homepage_url": "https://www.nature.com/nature/",
+    "h_index": 1795,
+    "cited_by_count": 25578329,
+    "works_count": 431710,
+    "is_open_access": false,
+    "is_in_doaj": false,
+    "relevance_count": 6,
+    "calculated_score": 74.0,
+    "openalex_id": "https://openalex.org/S137773608",
+    "type": "journal"
+  },
+  {
+    "journal_name": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+    "issn": [
+      "0162-8828",
+      "1939-3539",
+      "2160-9292"
+    ],
+    "publisher": "IEEE Computer Society",
+    "homepage_url": "http://www.computer.org/portal/web/tpami",
+    "h_index": 542,
+    "cited_by_count": 1771113,
+    "works_count": 9611,
+    "is_open_access": false,
+    "is_in_doaj": false,
+    "relevance_count": 6,
+    "calculated_score": 74.0,
+    "openalex_id": "https://openalex.org/S199944782",
+    "type": "journal"
+  },
+  {
+    "journal_name": "Neural Networks",
+    "issn": [
+      "0893-6080",
+      "1879-2782"
+    ],
+    "publisher": "Elsevier BV",
+    "homepage_url": "http://www.elsevier.com/locate/neunet",
+    "h_index": 244,
+    "cited_by_count": 436035,
+    "works_count": 6637,
+    "is_open_access": false,
+    "is_in_doaj": false,
+    "relevance_count": 2,
+    "calculated_score": 58.0,
+    "openalex_id": "https://openalex.org/S123019304",
+    "type": "journal"
+  }
+]
